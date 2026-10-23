@@ -80,6 +80,8 @@ export const LIMITS = {
   nodesBytes: 4 * 1024 * 1024,
   statusBytes: 2 * 1024 * 1024,
   programsBytes: 1024 * 1024,
+  /** /rest/programs/<id>: one program, or a folder and its children. */
+  programEntryBytes: 256 * 1024,
   variablesBytes: 512 * 1024,
   commandBytes: 16 * 1024,
   /** One WebSocket message. */

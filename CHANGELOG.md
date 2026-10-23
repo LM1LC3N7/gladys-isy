@@ -10,6 +10,16 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Changed
+
+- Before a program is run, only that program and its folder are read again,
+  not the whole list of programs: faster on a slow controller.
+
+### Fixed
+
+- The count of connection failures is erased only by the event stream that
+  stayed open a minute, never by the timer of a stream that already dropped.
+
 ## [0.1.1] - 2026-10-23
 
 ### Added

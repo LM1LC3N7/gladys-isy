@@ -55,6 +55,7 @@ import {
   parseEvent,
   parseNodeStatus,
   parseNodes,
+  parseProgramEntry,
   parsePrograms,
   parseStatus,
   parseVariableNames,
@@ -460,7 +461,7 @@ export class IsyApp {
     this.heartbeatMs = this.T.heartbeat;
     this.startSync(session);
     this.armWatchdog(session);
-    await this.guard(() => this.onUp(session));
+    await this.guard(() => this.onUp(session, stream));
   }
 
   /** The replay of every status after the opening: no scene event until it is quiet (pyisy). */
@@ -502,11 +503,13 @@ export class IsyApp {
     this.stream = undefined;
     this.connected = false;
     this.syncing = false;
+    this.cancel(this.stableTimer);
+    this.stableTimer = undefined;
     this.wakeWork?.();
     this.guard(() => this.onDown(this.failureOf(err), session));
   }
 
-  async onUp(session) {
+  async onUp(session, stream = this.stream) {
     if (session !== this.session) return;
     const memory = await this.loadMemory();
     if (memory.stop) {
@@ -517,7 +520,12 @@ export class IsyApp {
     if (session !== this.session) return;
     // The pause and the count of failures are erased only once the stream
     // has lived a while: a stream that opens and drops at once keeps its pace.
-    this.later(() => this.markStable(session), this.T.stableAfter);
+    // The timer belongs to this stream: cancelled when it drops, and it only
+    // counts if this very stream is still the open one.
+    this.cancel(this.stableTimer);
+    this.stableTimer = stream
+      ? this.later(() => this.markStable(session, stream), this.T.stableAfter)
+      : undefined;
     this.logger.info('ISY: connected to the controller');
     await this.setStatus(true, this.connectedMessage());
     await this.publishTransports(DEVICE_TRANSPORTS.LOCAL);
@@ -525,8 +533,11 @@ export class IsyApp {
     this.work(session);
   }
 
-  async markStable(session) {
-    if (session !== this.session || !this.connected) return;
+  async markStable(session, stream) {
+    this.stableTimer = undefined;
+    if (session !== this.session || !this.connected || !stream?.open || this.stream !== stream) {
+      return;
+    }
     const memory = await this.loadMemory();
     if (!memory.retryAt && !memory.failures) return;
     memory.retryAt = 0;
@@ -538,6 +549,8 @@ export class IsyApp {
   async onDown({ reason, refused }, session) {
     if (session !== this.session) return;
     this.connected = false;
+    this.cancel(this.stableTimer);
+    this.stableTimer = undefined;
     // Whatever answers at the next connection is checked again first.
     this.identity = 'unknown';
     this.seenId = undefined;
@@ -1270,24 +1283,38 @@ export class IsyApp {
     let answer;
     try {
       answer = await this.serial(target.platformId, async () => {
-        // A fresh read of the programs, in the budget of the command: the
-        // program must still be in the "Gladys" folder, under the same name
-        // (a deleted program's id may be reused elsewhere).
-        let list;
-        try {
-          const fresh = await http.get(`${restPath('programs')}?subfolders=true`, {
+        // A fresh read of this program and of its parent only, in the budget
+        // of the command: it must still be a program directly in a folder
+        // named "Gladys", under the same name (a deleted program's id may be
+        // reused elsewhere).
+        const entry = async (id) => {
+          const answer = await http.get(restPath('programs', id.toUpperCase()), {
             timeout: Math.max(200, asked + this.T.sendBy - this.now()),
-            maxBytes: LIMITS.programsBytes,
+            maxBytes: LIMITS.programEntryBytes,
+            ok404: true,
           });
-          list = parsePrograms(fresh.body, PROGRAM_FOLDER);
+          return answer.status === 404 ? undefined : parseProgramEntry(answer.body, id);
+        };
+        let found;
+        let parent;
+        try {
+          found = await entry(program.id);
+          if (found?.parent) parent = await entry(found.parent);
         } catch (err) {
-          this.logger.warn(`Program ${program.id} NOT sent: the programs could not be read`);
+          this.logger.warn(`Program ${program.id} NOT sent: the program could not be read`);
           throw this.refused(err?.kind === 'timeout' ? T.tooLate : T.programCheckFailed);
         }
-        const found = list.find((p) => p.id === program.id);
-        if (!found || found.name !== program.name) {
+        if (
+          !found ||
+          found.folder ||
+          found.name !== program.name ||
+          !parent?.folder ||
+          parent.name.toLowerCase() !== PROGRAM_FOLDER
+        ) {
           this.logger.warn(`Program ${program.id} REFUSED: no longer in the "Gladys" folder`);
-          await this.replacePrograms(list);
+          await this.replacePrograms(
+            [...this.model.programs.values()].filter((p) => p.id !== program.id),
+          );
           throw this.refused(T.programGone);
         }
         return http.get(restPath('programs', program.id.toUpperCase(), 'run'), {

@@ -201,3 +201,23 @@ test('review 1: Insteon addresses without leading zeros, credentials in the addr
   assert.equal(addressKey('09 7E 1C 01'), '9 7E 1C 1');
   assert.equal(normalizeConfig({ host: 'http://admin:pw@eisy' }).credentialsInHost, true);
 });
+
+test('review 2: one program entry, a folder answer with its children', async () => {
+  const { parseProgramEntry } = await import('../src/isy/parse.js');
+  const folder =
+    '<programs><program id="0001" folder="true"><name>Gladys</name></program>' +
+    '<program id="0002" parentId="0001" folder="false"><name>Evening</name></program></programs>';
+  assert.deepEqual(parseProgramEntry(folder, '0001'), {
+    id: '0001',
+    name: 'Gladys',
+    parent: '',
+    folder: true,
+  });
+  assert.deepEqual(parseProgramEntry(folder, '0002'), {
+    id: '0002',
+    name: 'Evening',
+    parent: '0001',
+    folder: false,
+  });
+  assert.equal(parseProgramEntry(folder, '0003'), undefined);
+});

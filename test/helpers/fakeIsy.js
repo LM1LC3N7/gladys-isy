@@ -153,14 +153,18 @@ export class FakeIsy {
         ? xml(`<properties>${n.props.map(prop).join('')}</properties>`)
         : res.writeHead(404).end();
     }
+    const programXml = (p) =>
+      `<program id="${p.id}"${p.parent ? ` parentId="${p.parent}"` : ''} status="${p.status ?? false}" folder="${p.folder ?? false}"><name>${p.name}</name></program>`;
     if (url.pathname === '/rest/programs') {
-      const body = this.programs
-        .map(
-          (p) =>
-            `<program id="${p.id}"${p.parent ? ` parentId="${p.parent}"` : ''} status="${p.status ?? false}" folder="${p.folder ?? false}"><name>${p.name}</name></program>`,
-        )
-        .join('');
-      return xml(`<programs>${body}</programs>`);
+      return xml(`<programs>${this.programs.map(programXml).join('')}</programs>`);
+    }
+    if (parts[1] === 'programs' && parts[2] && parts[3] === undefined) {
+      // One program; a folder comes with its children.
+      const id = parts[2].toLowerCase();
+      const p = this.programs.find((x) => x.id.toLowerCase() === id);
+      if (!p) return res.writeHead(404).end();
+      const children = p.folder ? this.programs.filter((x) => x.parent === p.id) : [];
+      return xml(`<programs>${[p, ...children].map(programXml).join('')}</programs>`);
     }
     if (parts[1] === 'vars' && parts[2] === 'definitions') {
       const list = this.variables[parts[3]] ?? [];

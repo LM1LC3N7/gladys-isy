@@ -453,3 +453,40 @@ test('I-4 a stream that opens then drops at once keeps its pace', async (t) => {
   assert.ok(isy.paths('WS').length - opens <= 5, `${isy.paths('WS').length - opens} openings`);
   assert.ok(ctx.store.data.failures >= 3);
 });
+
+// --- Review 2 -----------------------------------------------------------------
+
+test('m-2 before "Run": only the program and its parent are read, then the run', async (t) => {
+  const ctx = await setup(t, { config: { allow_programs: true } });
+  const from = ctx.isy.requests.length;
+  const ack = await ctx.set('p_0002', 'run', 1);
+  assert.equal(ack.success, true, ack.error);
+  assert.deepEqual(ctx.isy.requests.slice(from), [
+    '/rest/programs/0002',
+    '/rest/programs/0001',
+    '/rest/programs/0002/run',
+  ]);
+  // Deleted on the controller: 404, refused, removed from Gladys.
+  ctx.isy.programs = ctx.isy.programs.filter((p) => p.id !== '0002');
+  const gone = await ctx.set('p_0002', 'run', 1);
+  assert.equal(gone.success, false);
+  assert.match(gone.error, /no longer in the "Gladys" folder/);
+  assert.equal(ctx.isy.paths('/rest/programs/0002/run').length, 1);
+  await until(() => ctx.device('p_0002') === undefined);
+});
+
+test('m-1 the stable timer of a stream that dropped never clears the failures', async (t) => {
+  const ctx = await setup(t);
+  ctx.app.T.stableAfter = 1_000;
+  ctx.isy.dropStreams();
+  await until(() => !ctx.app.connected);
+  await until(() => ctx.app.connected, 3_000);
+  const second = Date.now();
+  await settle(250);
+  ctx.isy.dropStreams();
+  await until(() => !ctx.app.connected);
+  await until(() => ctx.app.connected, 3_000);
+  await settle(Math.max(0, second + 1_200 - Date.now()));
+  assert.equal(ctx.store.data.failures, 2, 'the timer of the second stream was cancelled');
+  await until(() => ctx.store.data.failures === 0, 3_000);
+});

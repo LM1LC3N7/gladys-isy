@@ -172,6 +172,26 @@ export function parsePrograms(text, folderName) {
     .map(({ id, name, status }) => ({ id, name, status }));
 }
 
+/**
+ * /rest/programs/<id> -> the entry of that id only, or undefined:
+ * { id, name, parent, folder }. The answer may also list the children of a
+ * folder: only the element whose id is the one asked counts.
+ */
+export function parseProgramEntry(text, wanted) {
+  const doc = parseXml(text);
+  for (const el of doc.name === 'program' ? [doc] : doc.children) {
+    if (el.name !== 'program' || !isProgramId(el.attrs.id)) continue;
+    if (programId(el.attrs.id) !== wanted) continue;
+    return {
+      id: wanted,
+      name: cleanText(childText(el, 'name') ?? '') || wanted,
+      parent: isProgramId(el.attrs.parentId) ? programId(el.attrs.parentId) : '',
+      folder: el.attrs.folder === 'true',
+    };
+  }
+  return undefined;
+}
+
 /** /rest/vars/definitions/<type> -> Map(id -> name). An empty or 404 answer: none. */
 export function parseVariableNames(text) {
   const out = new Map();

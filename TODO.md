@@ -43,6 +43,10 @@ up to date at the end of every milestone.
 
 ## To check on a real controller
 
+- The answer of `/rest/programs/<id>` without `subfolders` (PyISY always
+  adds `subfolders=true`): the program itself with its `parentId`; for a
+  folder, the folder first, then its children. Only the element of the id
+  asked is used. A 404 for a deleted program.
 - That the event stream needs no subscription message (PyISY sends none) and
   that it replays every status at the opening; the size of that replay on a
   large network (the publisher spreads it under 300 states a minute).
@@ -147,7 +151,9 @@ up to date at the end of every milestone.
   option, like "Turn on".
 - **Programs**: `run` (the controller evaluates the If) for the programs of
   the `Gladys` folder only, behind `allow_programs` (off). Before each run,
-  in the budget of the command, the programs are read fresh: the program must
+  in the budget of the command, the program alone (`/rest/programs/<id>`)
+  then its parent folder are read fresh (review 2, m-2: not the whole list,
+  up to 1 MB on a slow ISY994; 256 KB at most each): the program must
   still be a direct child of a folder named `Gladys`, under the same name
   (an id reused after a deletion is refused); the option is checked again
   right before the request (review 1, I-1). Each status round replaces the
@@ -202,7 +208,9 @@ up to date at the end of every milestone.
   more); a restart waits for it. The count and the pause are erased only
   once the stream has stayed open 60 s: a stream that opens then drops at
   once keeps its pace, and `/data` is written at most once a minute
-  (review 1, I-4). The test button refuses during a pause (shows the
+  (review 1, I-4). The 60 s timer belongs to the stream that set it: it is
+  cancelled when that stream drops, and counts only if that very stream is
+  still the open one (review 2, m-1). The test button refuses during a pause (shows the
   status), except after "another controller".
 - **Event stream bytes** (review 1, B-1): the bytes that come with the 101
   answer are parsed first, then what the socket received meanwhile, in
