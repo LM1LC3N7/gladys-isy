@@ -292,6 +292,7 @@ export class IsyApp {
 
   configProblem() {
     if (this.config.https) return T.httpsNotYet;
+    if (this.config.credentialsInHost) return T.credentialsInHost;
     if (!this.config.host || !this.config.username || !this.config.password) return T.noConfig;
     if (this.config.controllerIdInvalid) return T.badControllerId;
     return undefined;
@@ -378,6 +379,11 @@ export class IsyApp {
     if (this.duplicates.length > 0) parts.push(fill(T.duplicates, list(this.duplicates)));
     if (this.config.safeErrors.length > 0)
       parts.push(fill(T.safeErrors, list(this.config.safeErrors)));
+    if (this.model.nodes.size > 0) {
+      const known = new Set([...this.model.nodes.values()].map((n) => addressKey(n.address)));
+      const unmatched = [...this.config.safe.keys()].filter((key) => !known.has(key));
+      if (unmatched.length > 0) parts.push(fill(T.safeUnknown, list(unmatched)));
+    }
     const count = entries(this.config, this.model, addressKey).length;
     return Object.fromEntries(
       ['en', 'fr'].map((lang) => [
@@ -393,6 +399,9 @@ export class IsyApp {
     if (session !== this.session || this.connecting) return;
     this.cancel(this.retryTimer);
     this.retryTimer = undefined;
+    // Every connection reads the identity again before any command.
+    this.identity = 'unknown';
+    this.seenId = undefined;
     this.http?.close();
     this.http = this.transportFactory({
       host: this.config.host,
@@ -500,14 +509,15 @@ export class IsyApp {
   async onUp(session) {
     if (session !== this.session) return;
     const memory = await this.loadMemory();
-    if (memory.stop || memory.retryAt || memory.failures) {
-      // The first success erases the refusal and the pause.
+    if (memory.stop) {
+      // The credentials were accepted: the refusal is erased.
       memory.stop = null;
-      memory.retryAt = 0;
-      memory.failures = 0;
       await this.saveMemory();
     }
     if (session !== this.session) return;
+    // The pause and the count of failures are erased only once the stream
+    // has lived a while: a stream that opens and drops at once keeps its pace.
+    this.later(() => this.markStable(session), this.T.stableAfter);
     this.logger.info('ISY: connected to the controller');
     await this.setStatus(true, this.connectedMessage());
     await this.publishTransports(DEVICE_TRANSPORTS.LOCAL);
@@ -515,9 +525,22 @@ export class IsyApp {
     this.work(session);
   }
 
+  async markStable(session) {
+    if (session !== this.session || !this.connected) return;
+    const memory = await this.loadMemory();
+    if (!memory.retryAt && !memory.failures) return;
+    memory.retryAt = 0;
+    memory.failures = 0;
+    this.persistedAt = this.now();
+    await this.saveMemory();
+  }
+
   async onDown({ reason, refused }, session) {
     if (session !== this.session) return;
     this.connected = false;
+    // Whatever answers at the next connection is checked again first.
+    this.identity = 'unknown';
+    this.seenId = undefined;
     const stream = this.stream;
     this.stream = undefined;
     stream?.close();
@@ -608,8 +631,19 @@ export class IsyApp {
       this.stream = undefined;
       this.connected = false;
       stream?.close();
+      // Read again later (only the identity), the time persisted so a restart waits too.
+      const memory = await this.loadMemory();
+      memory.retryAt = this.now() + this.T.otherRetry;
+      this.persistedAt = this.now();
+      await this.saveMemory();
+      if (session !== this.session) return false;
+      this.cancel(this.retryTimer);
+      this.retryTimer = this.later(() => this.connect(session), this.T.otherRetry);
       await this.guard(async () => {
-        await this.setStatus(false, fill(T.otherController, info.uuid, expected));
+        await this.setStatus(
+          false,
+          fill(T.otherController, info.uuid, expected, Math.round(this.T.otherRetry / 60_000)),
+        );
         await this.publishTransports(DEVICE_TRANSPORTS.UNREACHABLE);
       });
       return false;
@@ -802,23 +836,44 @@ export class IsyApp {
         this.logger.warn(`ISY: the variables could not be read (${err.message})`);
       }
     }
-    if (this.model.programs.size > 0) {
-      try {
-        const answer = await this.read(`${restPath('programs')}?subfolders=true`, {
-          timeout: this.T.catalogTimeout,
-          maxBytes: LIMITS.programsBytes,
-        });
-        if (!alive()) return;
-        for (const p of parsePrograms(answer.body, PROGRAM_FOLDER)) {
-          const known = this.model.programs.get(`p_${p.id}`);
-          if (known) known.status = p.status;
-        }
-      } catch (err) {
-        if (err?.kind === 'auth') throw err;
-        this.logger.warn(`ISY: the programs could not be read (${err.message})`);
-      }
+    try {
+      const answer = await this.read(`${restPath('programs')}?subfolders=true`, {
+        timeout: this.T.catalogTimeout,
+        maxBytes: LIMITS.programsBytes,
+        ok404: true,
+      });
+      if (!alive()) return;
+      // The list read now replaces the known one: a program moved, deleted or
+      // whose folder was renamed is no longer offered; one put in it appears.
+      await this.replacePrograms(
+        answer.status === 404 ? [] : parsePrograms(answer.body, PROGRAM_FOLDER),
+      );
+    } catch (err) {
+      if (err?.kind === 'auth') throw err;
+      this.logger.warn(`ISY: the programs could not be read (${err.message})`);
     }
     this.noteChange([]);
+  }
+
+  /**
+   * The programs of the "Gladys" folder as just read: statuses updated, the
+   * absent ones removed, a changed list kept in /data and sent to Gladys.
+   */
+  async replacePrograms(list) {
+    const next = new Map(list.map((p) => [`p_${p.id}`, { ...p }]));
+    const same =
+      next.size === this.model.programs.size &&
+      [...next].every(([id, p]) => this.model.programs.get(id)?.name === p.name);
+    this.model.programs = next;
+    if (same) return;
+    this.logger.info(`ISY: ${next.size} program(s) in the "Gladys" folder now`);
+    this.devicesChanged = true;
+    this.noteChange([]);
+    const memory = await this.loadMemory();
+    if (memory.place === placeKey(this.config)) {
+      memory.catalog = this.catalogOfModel();
+      await this.saveMemory();
+    }
   }
 
   /** "Scan" in Gladys: the devices sent again; the catalogue read again, not more than every 10 min. */
@@ -1023,14 +1078,19 @@ export class IsyApp {
 
   checkSession() {
     if (this.identity === 'other') throw this.refused(T.otherControllerCommand);
-    if (!this.http) throw this.refused(T.offline);
+    if (!this.http || !this.connected) throw this.refused(T.offline);
+    // Read in this very connection (it is reset at every connection and every loss).
     if (this.identity !== 'ok') throw this.refused(T.identityUnknown);
   }
 
-  /** Right before the request: the deadline, the gate, the identity, the same session. */
+  /** Right before the request: the deadline, the gate, the identity, the same connection. */
   beforeSend(asked, gate, http) {
     return (
-      this.now() <= asked + this.T.sendBy && gate() && this.identity === 'ok' && this.http === http
+      this.now() <= asked + this.T.sendBy &&
+      gate() &&
+      this.identity === 'ok' &&
+      this.connected &&
+      this.http === http
     );
   }
 
@@ -1156,6 +1216,13 @@ export class IsyApp {
       if (err.kind === 'withdrawn') return this.refused(this.withdrawnReason(asked, gate, closed));
       return this.refused(T.offline);
     }
+    if (err instanceof IsyError && err.kind === 'status' && err.status === 404) {
+      // An ISY994 answers 404 when its Insteon network is busy (PyISY): it may
+      // have taken the command all the same.
+      this.logger.warn(`Command sent, answered 404, NOT confirmed (${what.en})`);
+      if (node) this.scheduleReadBack(node);
+      return this.error(fill(T.unconfirmed, word(what, this.config.language)));
+    }
     if (err instanceof IsyError && ['auth', 'busy', 'status'].includes(err.kind)) {
       // The controller answered: it did not take the command.
       this.logger.warn(`Command REFUSED by the controller (${what.en}): ${err.message}`);
@@ -1202,14 +1269,35 @@ export class IsyApp {
     this.logger.info(`Command from Gladys: ${what.en}`);
     let answer;
     try {
-      answer = await this.serial(target.platformId, () =>
-        http.get(restPath('programs', program.id.toUpperCase(), 'run'), {
+      answer = await this.serial(target.platformId, async () => {
+        // A fresh read of the programs, in the budget of the command: the
+        // program must still be in the "Gladys" folder, under the same name
+        // (a deleted program's id may be reused elsewhere).
+        let list;
+        try {
+          const fresh = await http.get(`${restPath('programs')}?subfolders=true`, {
+            timeout: Math.max(200, asked + this.T.sendBy - this.now()),
+            maxBytes: LIMITS.programsBytes,
+          });
+          list = parsePrograms(fresh.body, PROGRAM_FOLDER);
+        } catch (err) {
+          this.logger.warn(`Program ${program.id} NOT sent: the programs could not be read`);
+          throw this.refused(err?.kind === 'timeout' ? T.tooLate : T.programCheckFailed);
+        }
+        const found = list.find((p) => p.id === program.id);
+        if (!found || found.name !== program.name) {
+          this.logger.warn(`Program ${program.id} REFUSED: no longer in the "Gladys" folder`);
+          await this.replacePrograms(list);
+          throw this.refused(T.programGone);
+        }
+        return http.get(restPath('programs', program.id.toUpperCase(), 'run'), {
           timeout: Math.max(500, asked + this.T.answerBy - this.now()),
           maxBytes: LIMITS.commandBytes,
           beforeSend: () => this.beforeSend(asked, gate, http),
-        }),
-      );
+        });
+      });
     } catch (err) {
+      if (err instanceof Refused) throw err;
       if (
         err instanceof IsyError &&
         err.kind === 'withdrawn' &&
@@ -1247,16 +1335,18 @@ export class IsyApp {
 
   /**
    * "Test the connection": one try when stopped (a refusal is erased only by
-   * a success), never during a pause; never a read of the nodes.
+   * a success), never during a pause except after "another controller" (the
+   * identity is then read again once); never a read of the nodes.
    */
   async testConnection() {
     const problem = this.configProblem();
     if (problem) throw this.error(problem);
     const lastMessage = () => (this.lastStatus ? JSON.parse(this.lastStatus)[1] : undefined);
-    if (this.identity === 'other') throw this.error(lastMessage() ?? T.otherControllerCommand);
     const memory = await this.loadMemory();
     if (!this.connected && !this.connecting) {
-      if (memory.retryAt > this.now()) throw this.error(lastMessage() ?? T.offline);
+      if (memory.retryAt > this.now() && this.identity !== 'other') {
+        throw this.error(lastMessage() ?? T.offline);
+      }
       await this.setStatus(false, T.connecting);
       this.connect(this.session);
     }

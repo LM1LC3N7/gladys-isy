@@ -78,8 +78,11 @@ sous-dossier). Chacun reçoit un bouton **Lancer** (le contrôleur évalue son
 If, puis exécute son Then ou son Else) et le résultat de sa dernière
 condition. Les boutons ne fonctionnent qu'une fois **« Autoriser le lancement
 des programmes du dossier Gladys »** cochée : un programme peut tout faire,
-déverrouiller une porte ou ouvrir un garage. Un programme sorti du dossier ne
-peut plus être lancé.
+déverrouiller une porte ou ouvrir un garage. Juste avant chaque lancement, les
+programmes sont relus : un programme qui n'est plus directement dans le
+dossier « Gladys » (déplacé, supprimé, dossier renommé, ou son numéro repris
+par un autre programme) n'est pas lancé, et disparaît de Gladys à la lecture
+suivante.
 
 ## Commandes
 
@@ -113,9 +116,13 @@ déclenche jamais. 120 événements par minute au plus.
   connexion, puis à nouveau sur **Scanner** dans la Découverte ou quand le
   contrôleur signale un changement de ses nœuds, au plus toutes les 10
   minutes.
+- Après une perte du flux, aucune commande ne part avant que l'identifiant du
+  contrôleur ait été relu.
 - **Un autre contrôleur** répond à la même adresse IP (après un changement de
-  box) : rien n'est lu ni envoyé tant que vous ne saisissez pas son
-  identifiant.
+  box) : aucun nœud n'est lu et aucune commande n'est envoyée tant que vous ne
+  saisissez pas son identifiant. Seul son identifiant est relu toutes les 5
+  minutes, et à chaque clic sur « Tester la connexion » : cela envoie le nom
+  d'utilisateur et le mot de passe à l'appareil qui répond à cette adresse.
 - **Mot de passe refusé** : l'intégration s'arrête et ne réessaie jamais
   d'elle-même. Corrigez le mot de passe, ou cliquez sur « Tester la
   connexion » quand le contrôleur l'accepte.

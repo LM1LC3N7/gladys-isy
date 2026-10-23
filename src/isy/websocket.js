@@ -29,6 +29,8 @@ export const MAX_PINGS_IN_A_ROW = 100;
 /** A pong is written only while less than this waits in the socket. */
 export const MAX_PENDING_WRITE_BYTES = 64 * 1024;
 const CLOSE_WAIT = 2_000;
+/** Bytes received before the first turn after the upgrade (kept in order behind `head`). */
+export const MAX_EARLY_BYTES = 4 * 1024 * 1024;
 const OPCODES = Object.freeze({
   CONTINUATION: 0x0,
   TEXT: 0x1,
@@ -167,13 +169,33 @@ export class WebSocketConnection {
     this.onClose = onClose;
     this.open = true;
     socket.setNoDelay?.(true);
-    socket.on('data', (chunk) => this.#receive(chunk));
+    // The bytes that came with the upgrade (`head`) reach the parser once the
+    // owner holds the connection, at the next turn; what the socket receives
+    // before that waits behind them, in order (bounded), never ahead of them.
+    const early = [];
+    let earlyBytes = 0;
+    let ready = false;
+    socket.on('data', (chunk) => {
+      if (ready) {
+        this.#receive(chunk);
+        return;
+      }
+      earlyBytes += chunk.length;
+      if (earlyBytes > MAX_EARLY_BYTES) {
+        this.#fail('too_large', 'too much data before the stream was ready');
+        return;
+      }
+      early.push(chunk);
+    });
     socket.on('error', (err) =>
       this.#finish(new SocketError('closed', `connection lost (${String(err?.code ?? 'error')})`)),
     );
     socket.on('close', () => this.#finish(new SocketError('closed', 'connection closed')));
-    // The bytes that came with the upgrade reach the parser once the owner holds the connection.
-    if (head?.length) setImmediate(() => this.#receive(head));
+    setImmediate(() => {
+      ready = true;
+      if (head?.length) this.#receive(head);
+      for (const chunk of early.splice(0)) this.#receive(chunk);
+    });
   }
 
   /** Close (normal closure), then destroy the socket if the server does not answer. */

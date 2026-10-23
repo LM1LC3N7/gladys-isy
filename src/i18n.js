@@ -27,6 +27,10 @@ export const T = {
     en: 'HTTPS is not supported yet: enter the HTTP address (port 8080 on an eisy or a Polisy, 80 on an ISY994).',
     fr: "Le HTTPS n'est pas encore pris en charge : saisissez l'adresse HTTP (port 8080 sur un eisy ou un Polisy, 80 sur un ISY994).",
   },
+  credentialsInHost: {
+    en: 'Enter only the address of the controller in "Address of the controller": the user name and the password have their own fields.',
+    fr: "Saisissez seulement l'adresse du contrôleur dans « Adresse du contrôleur » : le nom d'utilisateur et le mot de passe ont leurs propres champs.",
+  },
   badControllerId: {
     en: 'The "Identifier of the controller" is not valid (e.g. 00:21:b9:02:12:34).',
     fr: "L'« identifiant du contrôleur » n'est pas valide (par ex. 00:21:b9:02:12:34).",
@@ -46,6 +50,10 @@ export const T = {
     en: (list) => ` Not understood in "Nodes declared safe": ${list}.`,
     fr: (list) => ` Non compris dans « Nœuds déclarés sûrs » : ${list}.`,
   },
+  safeUnknown: {
+    en: (list) => ` Declared safe but no such node: ${list}.`,
+    fr: (list) => ` Déclarés sûrs mais aucun nœud de cette adresse : ${list}.`,
+  },
   duplicates: {
     en: (list) => ` Left out (same id as another node): ${list}.`,
     fr: (list) => ` Laissés de côté (même identifiant qu'un autre nœud) : ${list}.`,
@@ -59,10 +67,10 @@ export const T = {
     fr: "Le contrôleur a refusé le nom d'utilisateur ou le mot de passe : aucun nouvel essai. Corrigez-les, ou cliquez sur « Tester la connexion » quand le contrôleur les accepte.",
   },
   otherController: {
-    en: (seen, expected) =>
-      `Another controller answers at this address (identifier ${seen}, expected ${expected}): nothing is read nor sent. If you replaced it, enter ${seen} in "Identifier of the controller".`,
-    fr: (seen, expected) =>
-      `Un autre contrôleur répond à cette adresse (identifiant ${seen}, attendu ${expected}) : rien n'est lu ni envoyé. Si vous l'avez remplacé, saisissez ${seen} dans « Identifiant du contrôleur ».`,
+    en: (seen, expected, minutes) =>
+      `Another controller answers at this address (identifier ${seen}, expected ${expected}): no node is read and no command is sent. Its identifier is read again every ${minutes} minutes or on "Test the connection". If you replaced it, enter ${seen} in "Identifier of the controller".`,
+    fr: (seen, expected, minutes) =>
+      `Un autre contrôleur répond à cette adresse (identifiant ${seen}, attendu ${expected}) : aucun nœud n'est lu et aucune commande n'est envoyée. Son identifiant est relu toutes les ${minutes} minutes ou sur « Tester la connexion ». Si vous l'avez remplacé, saisissez ${seen} dans « Identifiant du contrôleur ».`,
   },
   stillConnecting: {
     en: 'The controller has not answered yet: try again in a moment.',
@@ -97,6 +105,10 @@ export const T = {
   programGone: {
     en: 'This program is no longer in the "Gladys" folder of the controller: nothing was sent.',
     fr: "Ce programme n'est plus dans le dossier « Gladys » du contrôleur : rien n'a été envoyé.",
+  },
+  programCheckFailed: {
+    en: 'The programs of the controller could not be read to check this one: nothing was sent.',
+    fr: "Les programmes du contrôleur n'ont pas pu être lus pour vérifier celui-ci : rien n'a été envoyé.",
   },
   identityUnknown: {
     en: 'The identity of the controller is not checked yet: nothing was sent.',

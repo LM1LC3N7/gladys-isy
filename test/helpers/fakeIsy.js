@@ -77,6 +77,8 @@ export class FakeIsy {
     this.sockets = new Set();
     this.silent = false;
     this.refuseCommands = false;
+    /** Frames of no meaning (`_5`) sent in the replay before the statuses. */
+    this.replayPadding = 600;
     this.server = http.createServer((req, res) => this.handle(req, res));
     this.server.on('upgrade', (req, socket) => this.upgrade(req, socket));
   }
@@ -206,24 +208,28 @@ export class FakeIsy {
     const accept = createHash('sha1')
       .update(`${req.headers['sec-websocket-key']}${GUID}`)
       .digest('base64');
-    socket.write(
-      'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
-        `Sec-WebSocket-Accept: ${accept}\r\nSec-WebSocket-Protocol: ISYSUB\r\n\r\n`,
-    );
     socket.on('data', () => {});
     socket.on('error', () => {});
     socket.on('close', () => this.sockets.delete(socket));
     this.sockets.add(socket);
-    // The replay of every status, as the controller does when the stream opens.
-    socket.write(textFrame(event('_0', '120')));
-    for (const n of this.nodes) {
-      for (const p of n.props)
-        socket.write(
-          textFrame(
-            event(p.id === 'ST' ? 'ST' : p.id, p.value, n.address, { uom: p.uom, prec: p.prec }),
-          ),
-        );
-    }
+    // The replay of every status, as the controller does when the stream opens:
+    // several hundred frames, the first ones in the same packet as the 101
+    // answer, the others right behind (review 1, B-1).
+    const states = this.nodes.flatMap((n) =>
+      n.props.map((p) => textFrame(event(p.id, p.value, n.address, { uom: p.uom, prec: p.prec }))),
+    );
+    const padding = Array.from({ length: this.replayPadding }, () => textFrame(event('_5', '0')));
+    socket.write(
+      Buffer.concat([
+        Buffer.from(
+          'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+            `Sec-WebSocket-Accept: ${accept}\r\nSec-WebSocket-Protocol: ISYSUB\r\n\r\n`,
+        ),
+        textFrame(event('_0', '120')),
+        ...padding.slice(0, 10),
+      ]),
+    );
+    for (const frame of [...padding.slice(10), ...states]) socket.write(frame);
   }
 
   push(text) {

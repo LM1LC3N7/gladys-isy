@@ -108,8 +108,8 @@
         "fr": "Identifiant du contrôleur"
       },
       "description": {
-        "en": "Optional: its UUID, shown in the ISY Admin Console (Help > About), e.g. 00:21:b9:02:12:34. Empty: the controller found at the first connection is remembered. If another controller ever answers at the same address, nothing is read nor sent until you enter its identifier here.",
-        "fr": "Facultatif : son UUID, affiché dans l'ISY Admin Console (Help > About), par ex. 00:21:b9:02:12:34. Vide : le contrôleur trouvé à la première connexion est retenu. Si un autre contrôleur répond un jour à la même adresse, rien n'est lu ni envoyé tant que vous ne saisissez pas son identifiant ici."
+        "en": "Optional: its UUID, shown in the ISY Admin Console (Help > About), e.g. 00:21:b9:02:12:34. Empty: the controller found at the first connection is remembered. If another controller ever answers at the same address, no node is read and no command is sent; its identifier alone is read again every 5 minutes (this sends the user name and password to the device that answers), until you enter the new identifier here.",
+        "fr": "Facultatif : son UUID, affiché dans l'ISY Admin Console (Help > About), par ex. 00:21:b9:02:12:34. Vide : le contrôleur trouvé à la première connexion est retenu. Si un autre contrôleur répond un jour à la même adresse, aucun nœud n'est lu et aucune commande n'est envoyée ; seul son identifiant est relu toutes les 5 minutes (ce qui envoie le nom d'utilisateur et le mot de passe à l'appareil qui répond), jusqu'à ce que vous saisissiez le nouvel identifiant ici."
       },
       "placeholder": {
         "en": "00:21:b9:02:12:34",

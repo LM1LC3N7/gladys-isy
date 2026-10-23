@@ -72,8 +72,10 @@ Console (directly in it, not in a sub-folder). Each one gets a **Run** button
 (the controller evaluates its If, then runs its Then or its Else) and the
 result of its last condition. The buttons only work once **"Allow running
 the programs of the Gladys folder"** is ticked: a program may do anything,
-unlock a door or open a garage. A program taken out of the folder can no
-longer be run.
+unlock a door or open a garage. Right before each run, the programs are read
+again: a program no longer directly in the "Gladys" folder (moved, deleted,
+folder renamed, or its number reused by another program) is not run, and
+disappears from Gladys at the next reading.
 
 ## Commands
 
@@ -105,8 +107,13 @@ events per minute at most.
 - The list of nodes, variables and programs is read at the first connection,
   then again on **Scan** in the Discovery or when the controller says its
   nodes changed, at most every 10 minutes.
+- After the stream is lost, no command is sent before the identifier of the
+  controller is read again.
 - **Another controller** answering at the same IP address (after a router
-  change): nothing is read nor sent until you enter its identifier.
+  change): no node is read and no command is sent until you enter its
+  identifier. Its identifier alone is read again every 5 minutes, and at each
+  click on "Test the connection": this sends the user name and password to the
+  device that answers at that address.
 - **Password refused**: the integration stops and never tries again by
   itself. Correct the password, or click "Test the connection" once the
   controller accepts it.

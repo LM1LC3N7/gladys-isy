@@ -362,3 +362,94 @@ test('"Test the connection" reads no node', async (t) => {
   assert.match(JSON.stringify(ack.data), /00:21:b9:02:aa:bb/);
   assert.equal(ctx.isy.requests.length, before);
 });
+
+// --- Review 1 -----------------------------------------------------------------
+
+const forceRound = async (ctx) => {
+  const rounds = () => ctx.isy.requests.filter((p) => p === '/rest/status').length;
+  const before = rounds();
+  ctx.app.memory.lastRoundAt = 0;
+  ctx.app.wakeWork?.();
+  await until(() => rounds() > before);
+  await settle(150);
+  await ctx.app.chain;
+};
+
+test('I-1 a program moved out of the "Gladys" folder: removed at the round, never run', async (t) => {
+  const ctx = await setup(t, { config: { allow_programs: true } });
+  ctx.isy.programs.find((p) => p.id === '0002').parent = '0004';
+  await forceRound(ctx);
+  assert.equal(ctx.device('p_0002'), undefined, 'no longer offered');
+  assert.deepEqual(ctx.store.data.catalog.programs, []);
+  const ack = await ctx.set('p_0002', 'run', 1);
+  assert.equal(ack.success, false);
+  assert.equal(ctx.isy.paths('/rest/programs/0002/run').length, 0);
+});
+
+test('I-1 checked right before the run: folder renamed, id reused under another name', async (t) => {
+  const ctx = await setup(t, { config: { allow_programs: true } });
+  // Renamed folder, no round in between: the fresh read refuses.
+  ctx.isy.programs.find((p) => p.id === '0001').name = 'Old';
+  const renamed = await ctx.set('p_0002', 'run', 1);
+  assert.equal(renamed.success, false);
+  assert.match(renamed.error, /no longer in the "Gladys" folder/);
+  ctx.isy.programs.find((p) => p.id === '0001').name = 'Gladys';
+  await forceRound(ctx);
+  // Deleted, its id reused in the folder by another program.
+  ctx.isy.programs.find((p) => p.id === '0002').name = 'Open garage';
+  const reused = await ctx.set('p_0002', 'run', 1);
+  assert.equal(reused.success, false);
+  assert.match(reused.error, /no longer in the "Gladys" folder/);
+  assert.equal(ctx.isy.paths('/rest/programs/0002/run').length, 0);
+});
+
+test('I-2 a stream lost: no command before the identity is read in the new connection', async (t) => {
+  const ctx = await setup(t, {
+    config: { allow_output_buttons: true },
+  });
+  ctx.app.T.retries = [3_000, 3_000, 3_000, 3_000, 3_000];
+  ctx.isy.uuid = '00:21:b9:02:ff:ff';
+  ctx.isy.dropStreams();
+  await until(() => !ctx.app.connected);
+  const ack = await ctx.set('n_2b_3c_4d_1', 'turn_on', 1);
+  assert.equal(ack.success, false);
+  assert.equal(ctx.app.identity, 'unknown');
+  assert.equal(ctx.isy.paths('/rest/nodes/2B%203C%204D%201/cmd/').length, 0);
+});
+
+test('I-3 another controller: read again later and on "Test the connection"', async (t) => {
+  const ctx = await setup(t);
+  ctx.app.T.otherRetry = 500;
+  ctx.isy.uuid = '00:21:b9:02:ff:ff';
+  ctx.isy.dropStreams();
+  await until(() => ctx.app.identity === 'other', 3_000);
+  assert.match(ctx.status().message.en, /read again every/);
+  // The test button reads the identity once more.
+  const configs = ctx.isy.paths('/rest/config').length;
+  const refused = await ctx.gladys.fake.action('test_connection');
+  assert.equal(refused.success, false);
+  assert.ok(ctx.isy.paths('/rest/config').length > configs);
+  assert.equal(ctx.isy.paths('/rest/nodes/').length, 0);
+  // The right controller is back: the spaced retry reconnects.
+  ctx.isy.uuid = '00:21:b9:02:aa:bb';
+  await until(() => ctx.app.connected, 3_000);
+});
+
+test('I-4 a stream that opens then drops at once keeps its pace', async (t) => {
+  const isy = await new FakeIsy({ nodes: network() }).start();
+  t.after(() => isy.close());
+  const upgrade = isy.upgrade.bind(isy);
+  let flap = false;
+  isy.upgrade = (req, socket) => {
+    upgrade(req, socket);
+    if (flap) setTimeout(() => socket.destroy(), 20);
+  };
+  const ctx = await setup(t, { isy });
+  flap = true;
+  const opens = isy.paths('WS').length;
+  isy.dropStreams();
+  await settle(3_000);
+  // 100, 200, 400, 800, 1600 ms: at most 5 openings in 3 s, not one per 100 ms.
+  assert.ok(isy.paths('WS').length - opens <= 5, `${isy.paths('WS').length - opens} openings`);
+  assert.ok(ctx.store.data.failures >= 3);
+});

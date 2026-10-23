@@ -194,3 +194,10 @@ test('basic authentication: latin-1 when it fits, as pyisy', () => {
     `Basic ${Buffer.from('admin:pw€', 'utf8').toString('base64')}`,
   );
 });
+
+test('review 1: Insteon addresses without leading zeros, credentials in the address', () => {
+  assert.equal(addressKey('09.7E.1C'), '9 7E 1C 1');
+  assert.equal(addressKey('9 7E 1C 1'), '9 7E 1C 1');
+  assert.equal(addressKey('09 7E 1C 01'), '9 7E 1C 1');
+  assert.equal(normalizeConfig({ host: 'http://admin:pw@eisy' }).credentialsInHost, true);
+});

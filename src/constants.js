@@ -55,6 +55,10 @@ export const TIMINGS = {
   readBack: 2_000,
   /** Reconnections: 10 s, 30 s, 1 min, 2 min, then 5 min. */
   retries: [10_000, 30_000, 60_000, 120_000, 300_000],
+  /** A stream open this long is stable: the pause and the count of failures are erased. */
+  stableAfter: 60_000,
+  /** After "another controller": its identity is read again this often. */
+  otherRetry: 5 * 60_000,
   /** The identity of the controller is read again this often. */
   identity: 10 * 60_000,
   /** The catalogue (nodes, programs, variables) is read again at most this often. */

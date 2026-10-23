@@ -27,8 +27,17 @@ the notes of the version's GitHub Release.
   remotes pressed (never during the replay of the statuses).
 - Commands sent within 3.5 s or not at all, confirmed by the status the
   controller reports, else "sent, without confirmation" and a read back.
-- The identifier of the controller pinned: another controller at the same
-  address stops everything until its identifier is entered.
+- The identifier of the controller pinned and read again at every
+  connection before any command: another controller at the same address
+  gets no read nor command; its identifier is read again every 5 minutes and
+  on "Test the connection".
+- A program is run only if a fresh read shows it still in the "Gladys"
+  folder under the same name; each status round updates the list.
 - A refused password stops for good (no automatic retry); other failures are
   retried at 10 s, 30 s, 1, 2, then 5 minutes, the pause kept across a
-  restart. "Test the connection".
+  restart and erased only once the event stream stayed open a minute. "Test
+  the connection".
+- The replay of the statuses at the opening of the event stream is read
+  whole, in order, however many packets it spans.
+- Declared safe addresses compared without leading zeros; those matching no
+  node are listed in the status.

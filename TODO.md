@@ -99,10 +99,15 @@ up to date at the end of every milestone.
   with the place `host:port`, or typed in `controller_id`. Read at each
   connection (a failure there is a failure of the connection), at each
   status round and every 10 minutes (unreadable then: kept, read again a
-  minute later; never taken for another controller). Another identifier:
-  the stream is closed, nothing published nor sent, the status shows both
-  and says to type the new one. A command needs the identity checked
-  (`ok`), checked again right before the request.
+  minute later; never taken for another controller). The identity is reset
+  to "unknown" at every connection and every loss of the stream: no command
+  leaves before `/rest/config` was read again in the current connection, and
+  the stream must be open (review 1, I-2). Another identifier: the stream is
+  closed, no node read, no command sent, the status shows both and says to
+  type the new one; the identity alone is read again every 5 minutes (the
+  time persisted, a restart waits for it) and at each "Test the connection"
+  (review 1, I-3): this sends the credentials to the device present, said in
+  the docs and the manifest.
 - **Catalogue**: `/rest/nodes?members=false` (the folders and the scenes are
   not nodes), the programs whose parent folder is named `Gladys`
   (case-insensitive, the whole name, direct children only), the integer and
@@ -141,11 +146,16 @@ up to date at the end of every milestone.
   load is not a protective command (a freezer, a pump): it stays behind the
   option, like "Turn on".
 - **Programs**: `run` (the controller evaluates the If) for the programs of
-  the `Gladys` folder only, behind `allow_programs` (off); the option and the
-  presence in the folder are checked when asked and right before the
-  request. Confirmed by `succeeded="true"` of the controller, which runs the
+  the `Gladys` folder only, behind `allow_programs` (off). Before each run,
+  in the budget of the command, the programs are read fresh: the program must
+  still be a direct child of a folder named `Gladys`, under the same name
+  (an id reused after a deletion is refused); the option is checked again
+  right before the request (review 1, I-1). Each status round replaces the
+  list (a program removed disappears from Gladys and from `/data`; one added
+  appears). Confirmed by `succeeded="true"` of the controller, which runs the
   program itself (there is no value to read back). `status` is the result of
-  the last condition (`s` 21 = true, 31 = false, as PyISY).
+  the last condition: `s` 21 = true, 31 = false; any other value is ignored
+  (PyISY sets false then; ignoring is more careful).
 - **Commands**: one turn per node, which ends when the request is written
   (the confirmation is awaited outside it); the deadline (3.5 s after the
   request), the gate (declared safe / option), the identity and the session
@@ -154,7 +164,9 @@ up to date at the end of every milestone.
   equals the one asked (off: 0; on: above 0; brightness: the same
   percentage), before 3.8 s; else by one read of the node
   (`/rest/status/<address>`) before 4.6 s; else "sent, without
-  confirmation" and a read back 2 s later. An HTTP error answer (401, 404,
+  confirmation" and a read back 2 s later. A 404 after the request is
+  "sent, without confirmation" with a read back (an ISY994 answers spurious
+  404 when its Insteon network is busy). Another HTTP error answer (401,
   503...) or `succeeded="false"`: "the controller did not accept the
   command" (a 401 on a command never stops the reads). Values strict
   (`null`, `''` are not 0; a button takes 1 only). Commands use their own
@@ -187,8 +199,21 @@ up to date at the end of every milestone.
   only on success.
 - **Other failures**: 10 s, 30 s, 1 min, 2 min, then 5 min; the next try and
   the count persisted (at most once a minute unless the pause is a minute or
-  more); a restart waits for it. The test button refuses during a pause
-  (shows the status).
+  more); a restart waits for it. The count and the pause are erased only
+  once the stream has stayed open 60 s: a stream that opens then drops at
+  once keeps its pace, and `/data` is written at most once a minute
+  (review 1, I-4). The test button refuses during a pause (shows the
+  status), except after "another controller".
+- **Event stream bytes** (review 1, B-1): the bytes that come with the 101
+  answer are parsed first, then what the socket received meanwhile, in
+  order (4 MB at most before the first turn). Tested with bursts of 20 000
+  frames, in one write and in one write each; the fake controller replays
+  600 frames at each opening. gladys-system-bridge parses `head`
+  synchronously in its constructor, so it does not have this reordering.
+- **Declared safe addresses**: compared without leading zeros (`09.7E.1C`
+  = `9 7E 1C 1`, as the controller writes it); a declared address that
+  matches no node is listed in the status. An address with credentials
+  (`user:pw@host`) gets its own message.
 - **Late answers**: every await of the session code is followed by a check
   of the session number; a late answer of an old session publishes nothing
   and sets no status. A background read of an old connection is refused.

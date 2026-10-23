@@ -151,3 +151,48 @@ test('WebSocket: a masked server frame or a refused upgrade', async (t) => {
     { kind: 'auth' },
   );
 });
+
+// Review 1, B-1: the replay right after the upgrade, in the packet of the 101
+// answer and behind it, is read whole and in order.
+async function burst(t, frames, oneWrite) {
+  const port = await server(
+    t,
+    () => {},
+    (socket) => {
+      const body = Array.from({ length: frames }, (_, i) =>
+        textFrame(`<Event><control>ST</control><action>${i}</action><node>N ${i}</node></Event>`),
+      );
+      if (oneWrite) socket.write(Buffer.concat(body));
+      else for (const frame of body) socket.write(frame);
+    },
+  );
+  const got = [];
+  let closed;
+  const stream = await openEventStream({
+    host: '127.0.0.1',
+    port,
+    username: 'a',
+    password: 'b',
+    timeoutMs: 5_000,
+    maxMessageBytes: 64 * 1024,
+    onMessage: (text) => text && got.push(Number(/<action>(\d+)/.exec(text)[1])),
+    onClose: (err) => {
+      closed = err;
+    },
+  });
+  t.after(() => stream.close());
+  await until(() => got.length === frames || closed, 5_000);
+  assert.equal(closed, undefined);
+  assert.equal(got.length, frames);
+  assert.ok(
+    got.every((v, i) => v === i),
+    'in order',
+  );
+}
+
+for (const oneWrite of [false, true]) {
+  for (const frames of [10, 2_000, 20_000]) {
+    test(`WebSocket: a burst of ${frames} frames (${oneWrite ? 'one write' : 'one write each'})`, (t) =>
+      burst(t, frames, oneWrite));
+  }
+}

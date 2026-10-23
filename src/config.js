@@ -32,7 +32,7 @@ export function parseHost(raw) {
   if (scheme && scheme !== 'http') return { host: '', https: scheme === 'https' };
   text = text.replace(/^[a-z]+:\/\//i, '').replace(/\/.*$/, '');
   // `user:password@host` is not taken: they have their own fields.
-  if (text.includes('@')) return { host: '' };
+  if (text.includes('@')) return { host: '', credentials: true };
   const match = /^(\[[0-9a-f:.]+\]|[^:\s]+)(?::(\d{1,5}))?$/i.exec(text);
   if (!match) return { host: '' };
   const port = match[2] ? Number(match[2]) : undefined;
@@ -53,7 +53,11 @@ export function addressKey(raw) {
     .toUpperCase()
     .replace(/[.\s]+/g, ' ');
   if (!/^[\w :-]{1,64}$/.test(text)) return undefined;
-  if (/^[0-9A-F]{1,2} [0-9A-F]{1,2} [0-9A-F]{1,2}$/.test(text)) return `${text} 1`;
+  // Insteon: the controller writes "9 7E 1C 1" for the label "09.7E.1C": no leading zero.
+  if (/^[0-9A-F]{1,2} [0-9A-F]{1,2} [0-9A-F]{1,2}( [0-9A-F]{1,2})?$/.test(text)) {
+    const parts = text.split(' ').map((p) => parseInt(p, 16).toString(16).toUpperCase());
+    return (parts.length === 3 ? [...parts, '1'] : parts).join(' ');
+  }
   return text;
 }
 
@@ -81,7 +85,7 @@ export function parseSafeNodes(raw) {
 }
 
 export function normalizeConfig(raw = {}) {
-  const { host, port: hostPort, https } = parseHost(raw?.host);
+  const { host, port: hostPort, https, credentials } = parseHost(raw?.host);
   const language = String(raw?.language ?? DEFAULTS.language)
     .trim()
     .toLowerCase();
@@ -93,6 +97,7 @@ export function normalizeConfig(raw = {}) {
   return {
     host,
     https: https === true,
+    credentialsInHost: credentials === true,
     // A port typed with the address wins over the port field (which has a default).
     port: hostPort ?? integer(raw?.port, DEFAULTS.port, 1, 65535),
     username: typeof raw?.username === 'string' ? raw.username.trim() : '',
