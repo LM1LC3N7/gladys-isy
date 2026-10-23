@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-23
+
 ### Added
 
 - Universal Devices controllers (ISY994, IoX on an eisy or a Polisy) over
@@ -41,3 +43,6 @@ the notes of the version's GitHub Release.
   whole, in order, however many packets it spans.
 - Declared safe addresses compared without leading zeros; those matching no
   node are listed in the status.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-isy/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-isy/releases/tag/v0.1.1
