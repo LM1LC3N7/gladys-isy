@@ -1,6 +1,6 @@
 {
   "name": "gladys-isy",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Gladys Assistant external integration for Universal Devices ISY994, eisy and Polisy controllers (IoX): Insteon and Z-Wave nodes, variables, programs. Unofficial, not affiliated with Universal Devices.",
   "type": "module",

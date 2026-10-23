@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-23
+
 ### Changed
 
 - Before a program is run, only that program and its folder are read again,
@@ -54,5 +56,6 @@ the notes of the version's GitHub Release.
 - Declared safe addresses compared without leading zeros; those matching no
   node are listed in the status.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-isy/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/LM1LC3N7/gladys-isy/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/LM1LC3N7/gladys-isy/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LM1LC3N7/gladys-isy/releases/tag/v0.1.1
