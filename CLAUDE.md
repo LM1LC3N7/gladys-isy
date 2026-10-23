@@ -10,14 +10,16 @@ no build step) that runs in its own sandboxed Docker container and talks to
 Gladys through
 [`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js),
 its only runtime dependency. It started from the official JavaScript template.
+It reads and drives a Universal Devices controller (ISY994, or IoX on an
+eisy or a Polisy) through its REST API and its event stream, over HTTP.
 
 ## Commands
 
 ```bash
 npm install
 npm test                                  # node --test, the built-in runner
-node --test test/devices.test.js          # one file
-node --test --test-name-pattern "plug"    # tests whose name matches
+node --test test/app.test.js              # one file
+node --test --test-name-pattern "safe"    # tests whose name matches
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
 npm run format                            # Prettier, fix in place
@@ -32,45 +34,59 @@ pushing.
 
 ```
 index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
-src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
-src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
+src/handlers.js                   the SDK handlers, shared with the tests
+src/app.js                        IsyApp: lifecycle, identity, catalogue, rounds, events, commands
+src/isy/http.js                   HTTP to the REST API: basic auth, bounded answers,
+                                  beforeSend right before the request is written, `sent` flag
+src/isy/websocket.js              the event stream /rest/subscribe (RFC 6455 client, bounded)
+src/isy/xml.js                    bounded linear XML reader (no prototype, no entities defined)
+src/isy/parse.js                  answers and events -> plain objects (ported from PyISY)
+src/devices.js                    model -> Gladys devices and states (pure), kinds of nodes
+src/publisher.js                  states and scene events under the Gladys rate limits
+src/store.js                      /data: stop, pause, identity, catalogue, read times
+src/config.js                     DEFAULTS (mirror the manifest defaults) + normalization
+src/constants.js, src/i18n.js     keys, timings, limits; French and English texts
+gladys-assistant-integration.json manifest: name, config_schema, actions, scene trigger...
 docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
-test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+test/                             node --test, the SDK's fake Gladys + test/helpers/fakeIsy.js
+                                  (a fake controller on 127.0.0.1: REST and WebSocket)
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
+Safety rules of this integration (see TODO.md "Decisions"): an Insteon
+dimmer or switch is a light or a switch only when declared safe; the others
+are a read-only state with "Turn on" / "Turn off" buttons behind an option
+off by default; the programs of the "Gladys" folder get a "Run" button behind
+another option off by default; options, deadline and identity are checked
+when asked and right before the request is written; locks, thermostats,
+garage doors (I/O Linc) and Z-Wave nodes are never commanded; a command is
+confirmed only by the status the controller reports; a command that may have
+left is never reported "not sent"; the ack never waits for the publication;
+the controller identity is pinned; a refused password stops for good; never
+a read sooner than the interval (restart, reconnection, test button); objects
+without prototype or Maps for what the network names.
+
 ## Rules
 
-- **External ids are forever.** Build them with
-  `gladys.externalIds(type, platformId)`, `platformId` being the unique id the
-  platform gives the device (serial, cloud id, MAC), never a label. Gladys keys
-  devices, their history, scenes and dashboards on them: changing one creates a
-  new device and orphans the old one. The same goes for every key users store:
-  manifest `config_schema`, `actions`, widget and scene keys, feature keys.
+- **External ids are forever.** `gladys.externalIds('isy', <platform id>)`:
+  `n_<address slug>` for a node, `v1_<id>` / `v2_<id>` for a variable,
+  `p_<id>` for a program; feature keys are listed in `src/devices.js`.
+  Changing one creates a new device or feature and orphans the old one. The
+  same goes for every key users store: manifest `config_schema`, `actions`,
+  scene trigger keys and fields.
 - **The container rootfs is read-only.** Write only under `/data`, the one
   writable volume. Never log tokens, passwords or API keys.
-- **Versions belong to the Release workflow** (Actions → Release). Never edit
+- **Versions belong to the Release workflow** (Actions -> Release). Never edit
   `version` in `package.json` or in the manifest, nor the `docker_image` tag,
-  by hand — except on the README's hand-pushed tag path, which bumps all three
-  together before tagging. `test/manifest.test.js` checks they agree.
+  by hand (0.1.0 was set once, before any release). `test/manifest.test.js`
+  checks they agree.
 - **Changelog.** Every user-visible change adds a line under `## [Unreleased]`
-  in `CHANGELOG.md` (`### Added`, `Changed`, `Fixed`, `Removed`, `Security`).
-  Never write a version heading: the Release workflow moves the section, and it
-  becomes the notes of the GitHub Release.
-- **Manifest.** Texts are multi-language objects `{ "en": ..., "fr": ... }`:
-  `label`, `description` and `placeholder` alike, never a plain string. The
-  catalog `description` holds 10 to 100 characters per language. A field the
-  older cores do not know needs a higher `gladys_version` minimum
-  (`categories`: 4.86.0; `widgets`, `scene_triggers`, `scene_actions`,
-  `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
-  code (defaults, action, scene and widget handlers): change both sides
+  in `CHANGELOG.md`. Never write a version heading: the Release workflow moves
+  the section.
+- **Manifest.** Texts are multi-language objects `{ "en": ..., "fr": ... }`.
+  The catalog `description` holds 10 to 100 characters per language.
+  `test/manifest.test.js` ties the manifest to the code: change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** is bilingual (English and French), kept in sync.
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
-  in English. Tests never touch the network.
+  in English. Tests never touch the network beyond 127.0.0.1.

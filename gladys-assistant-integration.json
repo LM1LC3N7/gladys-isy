@@ -1,177 +1,309 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "ISY / IoX (Universal Devices)",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Universal Devices ISY994, eisy and Polisy controllers: nodes, variables and programs.",
+    "fr": "Contrôleurs Universal Devices ISY994, eisy et Polisy : nœuds, variables et programmes."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-isy:0.1.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-isy/main/cover.png",
+  "categories": ["protocols", "lighting"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Your controller",
+        "fr": "Votre contrôleur"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "For a Universal Devices controller on your local network: ISY994, or IoX on an eisy or a Polisy. The integration reads its Insteon and Z-Wave nodes (states, temperature, humidity, battery, power...), its variables, and the programs of a folder named \"Gladys\"; the control events (a paddle or a keypad button pressed) become scene triggers. Locks, thermostats and I/O Linc are read only. HTTP only for now: the password travels in clear on your network. Never tested with a real device. Unofficial, not affiliated with Universal Devices.",
+        "fr": "Pour un contrôleur Universal Devices de votre réseau local : ISY994, ou IoX sur un eisy ou un Polisy. L'intégration lit ses nœuds Insteon et Z-Wave (états, température, humidité, batterie, puissance...), ses variables et les programmes d'un dossier nommé « Gladys » ; les événements de commande (un interrupteur ou un bouton de clavier pressé) deviennent des déclencheurs de scène. Les serrures, thermostats et I/O Linc sont en lecture seule. HTTP seulement pour l'instant : le mot de passe circule en clair sur votre réseau. Jamais testé avec un vrai appareil. Non officiel, sans lien avec Universal Devices."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/LM1LC3N7/gladys-isy/blob/main/docs/fr.md",
+          "label": {
+            "en": "Guide (French)",
+            "fr": "Guide (français)"
+          }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-isy/blob/main/docs/en.md",
+          "label": {
+            "en": "Guide (English)",
+            "fr": "Guide (anglais)"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "host",
+      "type": "string",
+      "label": {
+        "en": "Address of the controller",
+        "fr": "Adresse du contrôleur"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "The IP address (or name) of the eisy, Polisy or ISY994; give it a fixed address in your router.",
+        "fr": "L'adresse IP (ou le nom) de l'eisy, du Polisy ou de l'ISY994 ; donnez-lui une adresse fixe dans votre box."
+      },
+      "placeholder": {
+        "en": "192.168.1.60",
+        "fr": "192.168.1.60"
+      },
+      "required": true
     },
     {
-      "key": "longitude",
+      "key": "port",
       "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "label": {
+        "en": "HTTP port",
+        "fr": "Port HTTP"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "description": {
+        "en": "8080 on an eisy or a Polisy, 80 on an ISY994.",
+        "fr": "8080 sur un eisy ou un Polisy, 80 sur un ISY994."
+      },
+      "required": false,
+      "default": 8080,
+      "min": 1,
+      "max": 65535
     },
     {
-      "key": "unit",
+      "key": "username",
+      "type": "string",
+      "label": {
+        "en": "User name",
+        "fr": "Nom d'utilisateur"
+      },
+      "description": {
+        "en": "The one of the ISY Admin Console (\"admin\" unless you changed it).",
+        "fr": "Celui de l'ISY Admin Console (« admin » sauf si vous l'avez changé)."
+      },
+      "required": true
+    },
+    {
+      "key": "password",
+      "type": "secret",
+      "label": {
+        "en": "Password",
+        "fr": "Mot de passe"
+      },
+      "description": {
+        "en": "The one of the ISY Admin Console. Kept by Gladys in its database, never shown again, sent only to the controller, never written in the logs. HTTP only for now: anyone who can read your local network can read it.",
+        "fr": "Celui de l'ISY Admin Console. Gardé par Gladys dans sa base, jamais réaffiché, envoyé seulement au contrôleur, jamais écrit dans les journaux. HTTP seulement pour l'instant : tout appareil qui lit votre réseau local peut le lire."
+      },
+      "required": true
+    },
+    {
+      "key": "controller_id",
+      "type": "string",
+      "label": {
+        "en": "Identifier of the controller",
+        "fr": "Identifiant du contrôleur"
+      },
+      "description": {
+        "en": "Optional: its UUID, shown in the ISY Admin Console (Help > About), e.g. 00:21:b9:02:12:34. Empty: the controller found at the first connection is remembered. If another controller ever answers at the same address, nothing is read nor sent until you enter its identifier here.",
+        "fr": "Facultatif : son UUID, affiché dans l'ISY Admin Console (Help > About), par ex. 00:21:b9:02:12:34. Vide : le contrôleur trouvé à la première connexion est retenu. Si un autre contrôleur répond un jour à la même adresse, rien n'est lu ni envoyé tant que vous ne saisissez pas son identifiant ici."
+      },
+      "placeholder": {
+        "en": "00:21:b9:02:12:34",
+        "fr": "00:21:b9:02:12:34"
+      },
+      "required": false
+    },
+    {
+      "key": "safe_nodes",
+      "type": "string",
+      "label": {
+        "en": "Nodes declared safe (Insteon lights and switches)",
+        "fr": "Nœuds déclarés sûrs (lumières et interrupteurs Insteon)"
+      },
+      "description": {
+        "en": "Addresses of the Insteon dimmers and switches that may be driven as a light or a switch, as the ISY Admin Console shows them, e.g. \"1A 2B 3C 1, 4D 5E 6F 1: light\" (a dimmer is always a light; a switch is a switch, or a light with \": light\"). A light or a switch obeys Google, Alexa, the MCP (\"turn everything off\") and the scenes: list only the nodes that drive lamps or harmless loads, never a pump, a heater, a freezer, a garage door. The other ones show their state, with \"Turn on\" / \"Turn off\" buttons (option below).",
+        "fr": "Adresses des variateurs et interrupteurs Insteon qui peuvent être pilotés comme une lumière ou un interrupteur, telles que l'ISY Admin Console les affiche, par ex. « 1A 2B 3C 1, 4D 5E 6F 1: light » (un variateur est toujours une lumière ; un interrupteur est un interrupteur, ou une lumière avec « : light »). Une lumière ou un interrupteur obéit à Google, Alexa, au MCP (« éteins tout ») et aux scènes : ne listez que les nœuds qui commandent des lampes ou des charges sans risque, jamais une pompe, un chauffage, un congélateur, une porte de garage. Les autres montrent leur état, avec des boutons « Allumer » / « Éteindre » (option ci-dessous)."
+      },
+      "placeholder": {
+        "en": "1A 2B 3C 1, 4D 5E 6F 1: light",
+        "fr": "1A 2B 3C 1, 4D 5E 6F 1: light"
+      },
+      "required": false
+    },
+    {
+      "key": "poll_interval",
+      "type": "number",
+      "label": {
+        "en": "Status reading (minutes)",
+        "fr": "Lecture des états (minutes)"
+      },
+      "description": {
+        "en": "The controller also sends every change as it happens; this reading catches what was missed. 2 to 60 minutes.",
+        "fr": "Le contrôleur envoie aussi chaque changement au fil de l'eau ; cette lecture rattrape ce qui a été manqué. 2 à 60 minutes."
+      },
+      "required": false,
+      "default": 10,
+      "min": 2,
+      "max": 60
+    },
+    {
+      "key": "safety",
+      "type": "section",
+      "label": {
+        "en": "Commands (off by default)",
+        "fr": "Commandes (désactivées par défaut)"
+      },
+      "description": {
+        "en": "The \"Turn on\" and \"Turn off\" buttons of the Insteon dimmers and switches not declared safe are off by default: the load behind them is unknown. The \"Run\" buttons of the programs of the \"Gladys\" folder are off by default too: a program may do anything (unlock a door, open a garage). Once allowed, every Gladys user, every scene and the Gladys app can press them. Every command is written in the integration logs.",
+        "fr": "Les boutons « Allumer » et « Éteindre » des variateurs et interrupteurs Insteon non déclarés sûrs sont désactivés par défaut : la charge qu'ils commandent est inconnue. Les boutons « Lancer » des programmes du dossier « Gladys » sont aussi désactivés par défaut : un programme peut tout faire (déverrouiller une porte, ouvrir un garage). Une fois autorisés, tout utilisateur de Gladys, toute scène et l'application Gladys peuvent les presser. Chaque commande est écrite dans les journaux de l'intégration."
+      }
+    },
+    {
+      "key": "allow_output_buttons",
+      "type": "boolean",
+      "label": {
+        "en": "Allow the \"Turn on\" / \"Turn off\" buttons",
+        "fr": "Autoriser les boutons « Allumer » / « Éteindre »"
+      },
+      "required": false,
+      "default": false
+    },
+    {
+      "key": "allow_programs",
+      "type": "boolean",
+      "label": {
+        "en": "Allow running the programs of the \"Gladys\" folder",
+        "fr": "Autoriser le lancement des programmes du dossier « Gladys »"
+      },
+      "required": false,
+      "default": false
+    },
+    {
+      "key": "language",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "label": {
+        "en": "Language of the names",
+        "fr": "Langue des noms"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "Used for the names of the features added from now on.",
+        "fr": "Sert aux noms des fonctionnalités ajoutées désormais."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": "fr",
+      "options": [
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français"
+          }
+        },
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion"
+      },
       "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "isy_control",
+      "label": {
+        "en": "ISY control event",
+        "fr": "Événement de commande ISY"
+      },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "A node reports a control event: a paddle, a keypad button or a remote pressed. The address is compared as written, as the ISY Admin Console shows it (1A 2B 3C 1). Leave a field empty to match any value.",
+        "fr": "Un nœud signale un événement de commande : un interrupteur, un bouton de clavier ou une télécommande pressé. L'adresse est comparée telle quelle, comme l'ISY Admin Console l'affiche (1A 2B 3C 1). Laissez un champ vide pour accepter toute valeur."
       },
       "fields": [
         {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
+          "key": "address",
+          "type": "string",
+          "label": {
+            "en": "Node address (e.g. 1A 2B 3C 1)",
+            "fr": "Adresse du nœud (ex. 1A 2B 3C 1)"
+          }
         },
         {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
+          "key": "control",
+          "type": "select",
+          "label": {
+            "en": "Control",
+            "fr": "Commande"
+          },
           "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
+            { "value": "DON", "label": { "en": "On", "fr": "Allumé" } },
+            { "value": "DOF", "label": { "en": "Off", "fr": "Éteint" } },
+            {
+              "value": "DFON",
+              "label": { "en": "Fast on (double press)", "fr": "Allumage rapide (double appui)" }
+            },
+            {
+              "value": "DFOF",
+              "label": { "en": "Fast off (double press)", "fr": "Extinction rapide (double appui)" }
+            },
+            {
+              "value": "FDUP",
+              "label": { "en": "Fade up (held)", "fr": "Montée progressive (maintien)" }
+            },
+            {
+              "value": "FDDOWN",
+              "label": { "en": "Fade down (held)", "fr": "Descente progressive (maintien)" }
+            },
+            {
+              "value": "FDSTOP",
+              "label": { "en": "Fade stop (released)", "fr": "Fin de variation (relâché)" }
+            },
+            { "value": "BRT", "label": { "en": "Brighten", "fr": "Plus lumineux" } },
+            { "value": "DIM", "label": { "en": "Dim", "fr": "Moins lumineux" } }
           ]
         }
       ],
       "variables": [
         {
-          "key": "target",
+          "key": "address",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "Node address",
+            "fr": "Adresse du nœud"
+          }
+        },
+        {
+          "key": "control",
+          "type": "string",
+          "label": {
+            "en": "Control",
+            "fr": "Commande"
+          }
+        },
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Node name",
+            "fr": "Nom du nœud"
+          }
         }
       ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
     }
   ]
 }

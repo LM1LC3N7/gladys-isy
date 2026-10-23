@@ -12,44 +12,23 @@ the notes of the version's GitHub Release.
 
 ### Added
 
-- A working example of scene triggers, scene actions and dashboard widgets
-  (Gladys 5.1.0 or later).
-- `CHANGELOG.md`, rolled by the Release workflow.
-- A GitHub Release for every version, with its changelog section as notes: the
-  Gladys Supervision page links each version to the repository's releases.
-- CI runs the tests on Node 22 and 24, and builds the Docker image.
-- Dependabot keeps the npm dependencies and the GitHub Actions up to date.
-- `SECURITY.md` (how to report a vulnerability) and `CLAUDE.md` (project rules
-  for contributors and coding assistants).
-- Manifest tests: `version` matches `package.json`, `docker_image` is tagged
-  with it, descriptions hold 10 to 100 characters, placeholders are
-  multi-language objects.
-- The latitude and longitude fields show an example value as placeholder.
-
-### Changed
-
-- Node.js 22 or later is required (Node 20 is end-of-life).
-- Integration SDK 0.15.0. The tests now run against the fake Gladys of the
-  SDK, which refuses the payloads Gladys refuses.
-- The refresh interval is one minute minimum, the fastest Gladys polls a
-  device. The plug's power is only sent when it changes, and every 30
-  minutes otherwise.
-
-### Fixed
-
-- Gladys refused the devices of the Discovery tab: the weather station and
-  the plug declared their poll frequency in seconds instead of one of the
-  values Gladys accepts, and were never polled. They now poll every minute,
-  and the readings follow the refresh interval of the configuration.
-
-- The release commit no longer fails `npm run format:check`: the Release
-  workflow updates the manifest `version` and `docker_image` in place instead
-  of re-printing the whole file with `jq`.
-- The integration can write to `/data`: the image creates the directory owned
-  by the `node` user, a new Docker volume was owned by root.
-- A sub-container running the integration's own image follows it to the new
-  tag at each release, as well as in the manifest of the build summary: it kept
-  the previous tag, which may not exist on the registry. Sub-containers on a
-  third-party image (a broker, a database...) keep theirs.
-
-[Unreleased]: https://github.com/GladysAssistant/integration-template-js/commits/main
+- Universal Devices controllers (ISY994, IoX on an eisy or a Polisy) over
+  HTTP on the local network (REST API and event stream ported from PyISY
+  3.8.0): the nodes, the variables and the programs of a "Gladys" folder,
+  kept in `/data`.
+- Insteon dimmers and switches: a light or a switch only when declared safe
+  in the configuration; otherwise a read-only state and "Turn on" / "Turn
+  off" buttons, disabled by default.
+- Locks, thermostats, I/O Linc and the other nodes read only: state, level,
+  temperature, humidity, light, power, voltage, current, battery.
+- Variables (read only); programs of the "Gladys" folder with a "Run"
+  button, disabled by default.
+- The scene trigger "ISY control event": paddles, keypad buttons and
+  remotes pressed (never during the replay of the statuses).
+- Commands sent within 3.5 s or not at all, confirmed by the status the
+  controller reports, else "sent, without confirmation" and a read back.
+- The identifier of the controller pinned: another controller at the same
+  address stops everything until its identifier is entered.
+- A refused password stops for good (no automatic retry); other failures are
+  retried at 10 s, 30 s, 1, 2, then 5 minutes, the pause kept across a
+  restart. "Test the connection".
